@@ -4,7 +4,7 @@ Use q-iteration to solve for an optimal policy
 Usage: q_iteration(env, gamma=discount factor, ent_wt= entropy bonus)
 """
 import numpy as np
-from scipy.misc import logsumexp as sp_lse
+from scipy.special import logsumexp as sp_lse
 from rlutil.logging import logger
 
 def softmax(q, alpha=1.0):

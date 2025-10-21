@@ -71,10 +71,10 @@ class TestExactFQI(unittest.TestCase):
         fqi = exact_fqi.WeightedExactFQI(self.env, self.network, **alg_args)
         fqi.pre_project()
         states, _, _, _, weights = fqi.get_sample_states()
-        self.assertEquals(weights.shape, (self.env.num_states, self.env.num_actions))
+        self.assertEqual(weights.shape, (self.env.num_states, self.env.num_actions))
         chk_weights = np.abs(weights - weights[:,0][:,np.newaxis])
-        self.assertEquals(np.sum(chk_weights), 0)
-        self.assertAlmostEquals(np.sum(weights), 1.0)
+        self.assertEqual(np.sum(chk_weights), 0)
+        self.assertAlmostEqual(np.sum(weights), 1.0)
 
     @parameterized.expand([(weight_mode,) for weight_mode in exact_fqi.WeightedExactFQI.WEIGHT_MODES])
     def testWeightStateAction(self, weight_mode):
@@ -87,8 +87,8 @@ class TestExactFQI(unittest.TestCase):
         fqi = exact_fqi.WeightedExactFQI(self.env, self.network, **alg_args)
         fqi.pre_project()
         states, _, _, _, weights = fqi.get_sample_states()
-        self.assertEquals(weights.shape, (self.env.num_states, self.env.num_actions))
-        self.assertAlmostEquals(np.sum(weights), 1.0)
+        self.assertEqual(weights.shape, (self.env.num_states, self.env.num_actions))
+        self.assertAlmostEqual(np.sum(weights), 1.0)
 
 
 if __name__ == "__main__":

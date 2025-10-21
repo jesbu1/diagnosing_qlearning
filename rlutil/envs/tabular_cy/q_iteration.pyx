@@ -4,7 +4,7 @@ import cython
 
 import numpy as np
 import scipy.misc
-from scipy.misc import logsumexp as lse
+from scipy.special import logsumexp as lse
 
 from cython.operator cimport dereference, preincrement
 from libcpp.map cimport map

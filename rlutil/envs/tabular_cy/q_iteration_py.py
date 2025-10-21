@@ -1,7 +1,6 @@
 """Implementations of hard and soft q-iteration for TabularEnv environments."""
 import numpy as np
-import scipy.misc
-from scipy.misc import logsumexp as lse
+from scipy.special import logsumexp as lse
 
 
 def compute_value_function(q_values, ent_wt=0.0):
