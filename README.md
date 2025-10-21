@@ -14,7 +14,7 @@ For those who prefer experimenting in Jupyter Notebooks, our algorithm prototypi
 
 
 # Setup
-Install dependencies
+Install dependencies. Use python 3.12.
 ```
 pip install -r requirements.txt
 sudo apt-get install python-dev
