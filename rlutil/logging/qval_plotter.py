@@ -59,7 +59,10 @@ class TabularQValuePlotter(object):
         normalized_values = normalized_values - np.min(normalized_values)
         normalized_values = normalized_values/np.max(normalized_values)
 
-        cmap = cm.get_cmap('RdYlBu')
+        try:
+            cmap = plt.get_cmap('RdYlBu')
+        except AttributeError:
+            cmap = cm.get_cmap('RdYlBu')
 
         for x, y in itertools.product(range(self.w), range(self.h)):
             if self.invert_y:
@@ -75,7 +78,7 @@ class TabularQValuePlotter(object):
                     xy_text = xy+txt_offset
                     ax.text(xy_text[0], xy_text[1], '%.1f'%og_val, size='x-small')
                 color = cmap(val)
-                ax.add_patch(Polygon(xy3+patch_offset, True,
+                ax.add_patch(Polygon(xy3+patch_offset, closed=True,
                                      color=color))
             #ax.add_patch(Rectangle(xy-0.5, 1, 1))
 
