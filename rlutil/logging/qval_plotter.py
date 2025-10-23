@@ -76,7 +76,7 @@ class TabularQValuePlotter(object):
                 patch_offset, txt_offset = ACT_OFFSETS[a]
                 if self.text_values:
                     xy_text = xy+txt_offset
-                    ax.text(xy_text[0], xy_text[1], '%.1f'%og_val, size='x-small')
+                    ax.text(xy_text[0], xy_text[1], '%.1f'%og_val, size='xx-small')
                 color = cmap(val)
                 ax.add_patch(Polygon(xy3+patch_offset, closed=True,
                                      color=color))

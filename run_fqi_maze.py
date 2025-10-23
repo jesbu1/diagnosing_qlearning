@@ -76,8 +76,14 @@ def visualize_qvalues(q_values, gridspec, title="Q-Values", save_path=None):
     for state in range(len(gridspec)):
         xy = gridspec.idx_to_xy(state)
         x, y = xy  # idx_to_xy returns a tuple (x, y)
+        
+        # The plotter inverts y when displaying, so we need to pre-invert
+        # to compensate: when plotter.invert_y=True, it does y = h-y-1 when reading
+        # So we need to set values at the inverted position
+        display_y = grid_height - y - 1
+        
         for action in range(5):
-            plotter.set_value(x, y, action, q_values[state, action])
+            plotter.set_value(x, display_y, action, q_values[state, action])
     
     # Create the plot
     plotter.make_plot()
@@ -391,7 +397,7 @@ def run_fqi_on_maze(maze_string,
     
     # Visualize optimal Q-values
     print("   - Visualizing optimal Q-values...")
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(20, 16))
     visualize_qvalues(fqi.ground_truth_q, gridspec, 
                      title="Optimal Q-Values (Q*)",
                      save_path=os.path.join(maze_output_dir, 'qstar.pdf'))
@@ -399,7 +405,7 @@ def run_fqi_on_maze(maze_string,
     
     # Visualize learned Q-values
     print("   - Visualizing learned Q-values...")
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(20, 16))
     visualize_qvalues(fqi.current_q, gridspec,
                      title=f"Learned Q-Values (Iteration {num_iterations})",
                      save_path=os.path.join(maze_output_dir, 'learned_q.pdf'))
@@ -407,7 +413,7 @@ def run_fqi_on_maze(maze_string,
     
     # Visualize policy
     print("   - Visualizing learned policy...")
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(20, 16))
     visualize_policy(fqi.current_q, gridspec, ent_wt=ent_wt,
                     title="Learned Policy",
                     save_path=os.path.join(maze_output_dir, 'policy.pdf'))
@@ -415,7 +421,7 @@ def run_fqi_on_maze(maze_string,
     
     # Visualize optimal policy
     print("   - Visualizing optimal policy...")
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(20, 16))
     visualize_policy(fqi.ground_truth_q, gridspec, ent_wt=ent_wt,
                     title="Optimal Policy",
                     save_path=os.path.join(maze_output_dir, 'optimal_policy.pdf'))
@@ -446,16 +452,16 @@ def main():
     # S = Start, R = Reward, O = Open space, # = Wall, L = Lava
     
     # Example 1: Simple 3x2 maze
-    # maze_string = "SOO\\OOR\\"
+    #maze_string = "SOO\\OOR\\"
     
     # Example 2: Larger 6x4 maze
     maze_string = "SOOOOO\\OOOOOO\\OOOOOO\\OOOOOR\\"
     
     # Example 3: Maze with obstacles
-    # maze_string = "SOOO\\O##O\\O##O\\OOOR\\"
+    #maze_string = "SOOO\\O##O\\O##O\\OOOR\\"
     
     # Example 4: Maze with lava
-    # maze_string = "OOOOOOR\\SOLLLLL\\OOOOOOO\\OOOOOO3\\"
+    #maze_string = "OOOOOOR\\SOLLLLL\\OOOOOOO\\OOOOOO3\\"
     
     print("\nMaze Layout:")
     print("-" * 40)
@@ -464,11 +470,11 @@ def main():
     print("-" * 40)
     
     # Run FQI with a name for this maze
-    maze_name = "maze_6x4"  # Change this for different mazes
+    maze_name = "larger_maze"  # Change this for different mazes
     
     fqi, log_dict, gridspec = run_fqi_on_maze(
         maze_string=maze_string,
-        num_iterations=50,
+        num_iterations=100,
         time_limit=50,
         discount=0.95,
         ent_wt=0.1,
