@@ -186,3 +186,222 @@ class TabularReplayBuffer(ReplayBuffer):
 
     def __len__(self):
         return self._len
+
+
+class TrajectoryReplayBuffer(ReplayBuffer):
+    """
+    Replay buffer that stores complete trajectories and can sample trajectory segments.
+    This is useful for history-conditioned Q-learning where we need access to temporal context.
+    """
+
+    def __init__(self, capacity=10000, store_full_trajectories=True):
+        """
+        Args:
+            capacity: Maximum number of transitions to store
+            store_full_trajectories: If True, store complete episodes; if False, store as transitions
+        """
+        self.capacity = capacity
+        self.store_full_trajectories = store_full_trajectories
+        
+        # Storage for trajectories
+        self.trajectories = []  # List of trajectory dictionaries
+        self.episode_boundaries = []  # List of (start_idx, end_idx) for each episode
+        
+        # Flat storage for efficient sampling
+        self._s = []
+        self._a = []
+        self._ns = []
+        self._r = []
+        self._episode_id = []  # Which episode each transition belongs to
+        self._timestep = []  # Timestep within episode
+        
+        self._len = 0  # Total number of transitions
+
+    def add_trajectory(self, states, actions, next_states, rewards, dones=None):
+        """
+        Add a complete trajectory to the buffer.
+        
+        Args:
+            states: Array of states [T]
+            actions: Array of actions [T]
+            next_states: Array of next states [T]
+            rewards: Array of rewards [T]
+            dones: Optional array of done flags [T]
+        """
+        T = len(states)
+        
+        if dones is None:
+            dones = np.zeros(T, dtype=bool)
+            dones[-1] = True
+        
+        # Store trajectory
+        episode_id = len(self.trajectories)
+        start_idx = self._len
+        end_idx = self._len + T
+        
+        trajectory = {
+            'states': np.array(states),
+            'actions': np.array(actions),
+            'next_states': np.array(next_states),
+            'rewards': np.array(rewards),
+            'dones': np.array(dones),
+            'length': T
+        }
+        
+        self.trajectories.append(trajectory)
+        self.episode_boundaries.append((start_idx, end_idx))
+        
+        # Add to flat storage
+        for t in range(T):
+            self._s.append(states[t])
+            self._a.append(actions[t])
+            self._ns.append(next_states[t])
+            self._r.append(rewards[t])
+            self._episode_id.append(episode_id)
+            self._timestep.append(t)
+        
+        self._len += T
+        
+        # Remove old trajectories if over capacity
+        while self._len > self.capacity and len(self.trajectories) > 1:
+            self._remove_oldest_trajectory()
+
+    def _remove_oldest_trajectory(self):
+        """Remove the oldest trajectory to maintain capacity."""
+        if len(self.trajectories) == 0:
+            return
+        
+        old_traj = self.trajectories.pop(0)
+        old_boundary = self.episode_boundaries.pop(0)
+        T = old_traj['length']
+        
+        # Remove from flat storage
+        self._s = self._s[T:]
+        self._a = self._a[T:]
+        self._ns = self._ns[T:]
+        self._r = self._r[T:]
+        self._episode_id = self._episode_id[T:]
+        self._timestep = self._timestep[T:]
+        
+        self._len -= T
+        
+        # Update episode boundaries
+        self.episode_boundaries = [(start - T, end - T) for start, end in self.episode_boundaries]
+        
+        # Update episode IDs
+        self._episode_id = [eid - 1 for eid in self._episode_id]
+
+    def add(self, s, a, ns, r):
+        """Add a single transition (for compatibility with base class)."""
+        # Treat as a single-step trajectory
+        self.add_trajectory([s], [a], [ns], [r], [True])
+
+    def sample(self, batch_size):
+        """Sample random transitions (for compatibility with base class)."""
+        if self._len == 0:
+            raise ValueError("Cannot sample from empty buffer")
+        
+        idxs = np.random.randint(0, self._len, size=batch_size)
+        s_ = np.array([self._s[i] for i in idxs])
+        a_ = np.array([self._a[i] for i in idxs])
+        ns_ = np.array([self._ns[i] for i in idxs])
+        r_ = np.array([self._r[i] for i in idxs])
+        
+        return s_, a_, ns_, r_
+
+    def sample_history_segments(self, batch_size, history_length, min_history_length=1):
+        """
+        Sample trajectory segments with sufficient history context.
+        
+        Args:
+            batch_size: Number of segments to sample
+            history_length: Length of history to include
+            min_history_length: Minimum history length required
+        
+        Returns:
+            history_states: [batch_size, history_length] - state indices
+            history_actions: [batch_size, history_length] - action indices
+            next_states: [batch_size] - next state after history
+            rewards: [batch_size] - reward for last action in history
+            valid_mask: [batch_size, history_length] - mask for valid history steps
+            timesteps: [batch_size, history_length] - ground truth timestep for each position
+        """
+        if self._len == 0:
+            raise ValueError("Cannot sample from empty buffer")
+        
+        batch_history_states = []
+        batch_history_actions = []
+        batch_next_states = []
+        batch_rewards = []
+        batch_masks = []
+        batch_timesteps = []
+        
+        for _ in range(batch_size):
+            # Sample a random trajectory
+            episode_id = np.random.randint(0, len(self.trajectories))
+            traj = self.trajectories[episode_id]
+            T = traj['length']
+            
+            # Sample a position that has at least min_history_length steps
+            if T < min_history_length:
+                # Use the whole trajectory and pad
+                end_pos = T - 1
+                start_pos = 0
+            else:
+                # Sample end position (at least min_history_length from start)
+                end_pos = np.random.randint(min_history_length - 1, T)
+                start_pos = max(0, end_pos - history_length + 1)
+            
+            # Extract history segment
+            hist_states = traj['states'][start_pos:end_pos + 1]
+            hist_actions = traj['actions'][start_pos:end_pos + 1]
+            hist_length = len(hist_states)
+            
+            # Get next state and reward
+            next_state = traj['next_states'][end_pos]
+            reward = traj['rewards'][end_pos]
+            
+            # Pad if necessary
+            if hist_length < history_length:
+                pad_length = history_length - hist_length
+                # Pad with first state/action
+                hist_states = np.concatenate([
+                    np.repeat(hist_states[0], pad_length),
+                    hist_states
+                ])
+                hist_actions = np.concatenate([
+                    np.repeat(hist_actions[0], pad_length),
+                    hist_actions
+                ])
+                mask = np.concatenate([
+                    np.zeros(pad_length, dtype=np.float32),
+                    np.ones(hist_length, dtype=np.float32)
+                ])
+                timesteps = np.concatenate([
+                    np.zeros(pad_length, dtype=np.int32),
+                    np.arange(start_pos, end_pos + 1, dtype=np.int32)
+                ])
+            else:
+                mask = np.ones(history_length, dtype=np.float32)
+                timesteps = np.arange(start_pos, end_pos + 1, dtype=np.int32)
+            
+            batch_history_states.append(hist_states)
+            batch_history_actions.append(hist_actions)
+            batch_next_states.append(next_state)
+            batch_rewards.append(reward)
+            batch_masks.append(mask)
+            batch_timesteps.append(timesteps)
+        
+        return (np.array(batch_history_states),
+                np.array(batch_history_actions),
+                np.array(batch_next_states),
+                np.array(batch_rewards),
+                np.array(batch_masks),
+                np.array(batch_timesteps))
+
+    def get_all_trajectories(self):
+        """Return all stored trajectories."""
+        return self.trajectories
+
+    def __len__(self):
+        return self._len
